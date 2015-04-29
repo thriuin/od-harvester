@@ -5,7 +5,7 @@ import logging
 from ConfigParser import ConfigParser
 from db_schema import ECRecord, add_record, connect_to_database, find_record_by_uuid, get_setting, save_setting
 from owslib.csw import CatalogueServiceWeb
-from owslib.fes import PropertyIsGreaterThanOrEqualTo
+from owslib.fes import PropertyIsGreaterThanOrEqualTo, FilterRequest
 from owslib.namespaces import Namespaces
 from colorama import init, Fore, Style
 from datetime import datetime
@@ -46,8 +46,13 @@ class CswScanner:
         csw_url = ini_config.get('csw', 'csw.url')
         csw_user = ini_config.get('csw', 'csw.username')
         csw_passwd = ini_config.get('csw', 'csw.password')
+        if csw_user and csw_passwd:
+            self.csw = CatalogueServiceWeb(csw_url, username=csw_user, password=csw_passwd, timeout=20)
+        else:
+            self.csw = CatalogueServiceWeb(csw_url, timeout=20)
 
-        self.csw = CatalogueServiceWeb(csw_url, username=csw_user, password=csw_passwd, timeout=20)
+
+#### The since date is currently being ignored.
 
     def get_all_ids(self, since=None):
 
@@ -55,9 +60,10 @@ class CswScanner:
             if since is not None:
                 scan_date = since.strftime('%Y-%m-%d')
                 since_query = PropertyIsGreaterThanOrEqualTo('Modified', scan_date)
-                self.csw.getrecords2(esn='brief', startposition=self.start_pos, constraints=[since_query])
+                self.csw.getrecords2(esn='brief', startposition=self.start_pos, typenames='gmd:MD_Metadata', constraints=[since_query])
             else:
-                self.csw.getrecords2(esn='brief', startposition=self.start_pos)
+                #self.csw.getrecords2(esn='brief', startposition=self.start_pos, typenames='gmd:MD_Metadata')
+                self.csw.getrecords2(xml='<csw:GetRecords xmlns:csw="http://www.opengis.net/cat/csw/2.0.2" service="CSW" version="2.0.2" resultType="results" outputSchema="csw:IsoRecord"><csw:Query typeNames="gmd:MD_Metadata"><csw:Constraint version="1.1.0"><Filter xmlns="http://www.opengis.net/ogc" xmlns:gml="http://www.opengis.net/gml"/></csw:Constraint></csw:Query></csw:GetRecords>')
             if self.csw.results['returned'] == 0:
                 break
             print '{0}Found {1}{2}{3} records'.format(Fore.GREEN, Fore.BLUE, self.csw.results['matches'], Fore.GREEN)
